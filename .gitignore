@@ -10,6 +10,17 @@ bin/
 build/
 dist/
 
+# Logs and runtime files
+*.log
+logs/
+runtime/
+tmp/
+temp/
+*.tmp
+*.pid
+dtoken.dat
+*dtoken.dat
+
 # Go workspace and dependency cache
 vendor/
 go.work

@@ -41,7 +41,7 @@ dToken:
   maxRefreshTimes: 0                                # 最大续期次数，0 表示不限
   tokenDelimiter: "_"                               # Token 内部分隔符
   encryptKey: "12345678912345678912345678912345"    # AES 加密密钥，长度必须为 16、24 或 32 字节
-  multiLogin: true                                  # 是否复用同一用户已有 Token
+  multiLogin: false                                  # 是否复用同一用户已有 Token
   authHeaderKey: "Authorization"                    # 认证请求头名称
   authExcludePaths:                                 # 免认证路径
     - "/api/v1/health"                              # 健康检查接口
