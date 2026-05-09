@@ -1,0 +1,53 @@
+# 系统配置
+server:
+  address: ":8001"
+  name: dtoken-gf-example
+  clientMaxBodySize: 0
+  openapiPath: "/web.json"
+  swaggerPath: "/swagger"
+
+# 日志配置
+logger:
+  path:                  "./logs/"           # 日志文件路径。默认为空，表示关闭，仅输出到终端
+  file:                  "{Y-m-d}.log"       # 日志文件格式。默认为"{Y-m-d}.log"
+  prefix:                ""                  # 日志内容输出前缀。默认为空
+  level:                 "ALL"               # 日志输出级别
+  timeFormat:            "2006-01-02 15:04:05" # 自定义日志输出的时间格式，使用 Golang 标准时间格式配置
+  ctxKeys:               []                  # 自定义 Context 上下文变量名称，自动打印 Context 的变量到日志中。默认为空
+  header:                true                # 是否打印日志的头信息。默认为 true
+  stdout:                true                # 日志是否同时输出到终端。默认为 true
+  rotateSize:            "20M"               # 按照日志文件大小对文件进行滚动切分。默认为 0，表示关闭滚动切分特性
+  rotateExpire:          "1d"                # 按照日志文件时间间隔对文件滚动切分。默认为 0，表示关闭滚动切分特性
+  rotateBackupLimit:     10                  # 按照切分文件数量清理切分文件，滚动切分开启时有效。默认为 0，表示不备份，切分则删除
+  rotateBackupExpire:    0                   # 按照切分文件有效期清理切分文件，滚动切分开启时有效。默认为 0，表示不备份，切分则删除
+  rotateBackupCompress:  0                   # 滚动切分文件的压缩比（0-9）。默认为 0，表示不压缩
+  rotateCheckInterval:   "1h"                # 滚动切分的时间检测间隔，一般不需要设置。默认为 1 小时
+  stdoutColorDisabled:   false               # 关闭终端的颜色打印。默认开启
+  writerColorEnable:     false               # 日志文件是否带上颜色。默认 false，表示不带颜色
+
+# Redis配置
+redis:
+  default:
+    address: 192.168.19.104:6379
+    db: 0
+    pass: root
+
+# dToken 配置
+dToken:
+  cacheMode: 2                                      # 缓存模式：1-gcache 2-gredis 3-gfile
+  cachePreKey: "DToken:"                            # 缓存 key 前缀
+  timeout: 60000                                    # Token 过期时间，1 分钟，单位毫秒
+  maxRefresh: 30000                                 # 最大续期窗口，30 秒，单位毫秒
+  maxRefreshTimes: 0                                # 最大续期次数，0 表示不限
+  tokenDelimiter: "_"                               # Token 内部分隔符
+  encryptKey: "12345678912345678912345678912345"    # AES 加密密钥，长度必须为 16、24 或 32 字节
+  multiLogin: true                                  # 是否复用同一用户已有 Token
+  authHeaderKey: "Authorization"                    # 认证请求头名称
+  authExcludePaths:                                 # 免认证路径
+    - "/api/v1/health"                              # 健康检查接口
+    - "/api/v1/auth/login"                          # 登录接口
+  poolMinSize: 10                                   # 续期协程池最小容量
+  poolMaxSize: 200                                  # 续期协程池最大容量
+  poolScaleUpRate: 0.8                              # 续期协程池扩容阈值
+  poolScaleDownRate: 0.3                            # 续期协程池缩容阈值
+  renewInterval: 0                                  # 最小续期间隔，单位毫秒

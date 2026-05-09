@@ -23,10 +23,14 @@ go get github.com/Zany2/dtoken-gf
 
 ### 1. 代码方式初始化
 
+推荐使用 v2 函数式配置，时间参数直接使用 `time.Duration`：
+
 ```go
 package main
 
 import (
+    "time"
+
     "github.com/gogf/gf/v2/frame/g"
     "github.com/gogf/gf/v2/net/ghttp"
     dtoken "github.com/Zany2/dtoken-gf/dtoken-gf"
@@ -36,15 +40,18 @@ func main() {
     s := g.Server()
 
     // 创建 Token 实例
-    token := dtoken.NewDefaultToken(dtoken.Options{
-        CacheMode:   dtoken.CacheModeCache, // 1-内存 2-Redis 3-文件
-        CachePreKey: "MyApp:",
-        Timeout:     10 * 24 * 60 * 60 * 1000, // 10天（毫秒）
-        MaxRefresh:  5 * 24 * 60 * 60 * 1000,  // 5天内自动续期
-        EncryptKey:  []byte("12345678912345678912345678912345"), // 必须 16/24/32 字节
-        MultiLogin:  true,
-        AuthExcludePaths: g.SliceStr{"/login", "/register", "/public/*"},
-    })
+    token, err := dtoken.New(
+        dtoken.WithCacheMode(dtoken.CacheModeCache),
+        dtoken.WithCachePreKey("MyApp:"),
+        dtoken.WithTimeout(10*24*time.Hour),
+        dtoken.WithMaxRefresh(5*24*time.Hour),
+        dtoken.WithEncryptKey([]byte("12345678912345678912345678912345")), // 必须 16/24/32 字节
+        dtoken.WithReuseToken(true),
+        dtoken.WithAuthExcludePaths("/login", "/register", "/public/*"),
+    )
+    if err != nil {
+        panic(err)
+    }
 
     // 创建中间件
     middleware := dtoken.NewDefaultMiddleware(token)
@@ -70,8 +77,9 @@ func main() {
 
         group.GET("/profile", func(r *ghttp.Request) {
             // 从上下文获取用户数据
-            data := r.GetCtxVar(dtoken.KeyUserKey)
-            r.Response.WriteJson(g.Map{"code": 0, "data": data})
+            userKey := r.GetCtxVar(dtoken.KeyUserKey)
+            data := r.GetCtxVar(dtoken.KeyData)
+            r.Response.WriteJson(g.Map{"code": 0, "userKey": userKey, "data": data})
         })
     })
 
@@ -96,6 +104,7 @@ dToken:
   tokenDelimiter: "_"
   encryptKey: "12345678912345678912345678912345"
   multiLogin: true
+  authHeaderKey: "Authorization"
   authExcludePaths:
     - "/login"
     - "/public/*"
@@ -107,7 +116,10 @@ dToken:
 ```
 
 ```go
-token := dtoken.NewDefaultTokenByConfig()
+token, err := dtoken.NewFromConfig()
+if err != nil {
+    panic(err)
+}
 ```
 
 ### 3. 自定义校验失败响应
@@ -134,11 +146,33 @@ middleware := dtoken.NewDefaultMiddleware(token, func(r *ghttp.Request) {
 | EncryptKey | []byte | 内置默认值 | AES 加密密钥，长度必须为 16/24/32 字节 |
 | TokenDelimiter | string | `_` | Token 内部分隔符 |
 | MultiLogin | bool | false | 是否允许多端登录复用 Token |
+| AuthHeaderKey | string | `Authorization` | 认证请求头名称 |
 | AuthExcludePaths | []string | 空 | 免认证路径，支持 `/*` 通配 |
 | PoolMinSize | int | 100 | 续期协程池最小容量 |
 | PoolMaxSize | int | 2000 | 续期协程池最大容量 |
 | PoolScaleUpRate | float64 | 0.8 | 协程池扩容阈值（使用率） |
 | PoolScaleDownRate | float64 | 0.3 | 协程池缩容阈值（使用率） |
+
+## v2 代码结构
+
+核心代码按职责拆分：
+
+| 文件 | 职责 |
+|------|------|
+| `factory.go` | Token 创建入口 |
+| `config.go` | 函数式配置选项 |
+| `options.go` | 基础配置结构、默认值和校验 |
+| `token.go` | Token 生成、校验、解析、销毁主流程 |
+| `store.go` | 原始会话数据存储接口 |
+| `session.go` | Token 会话数据结构 |
+| `session_codec.go` | Session 编解码实现 |
+| `renewer.go` | 自动续期判断和异步续期 |
+| `cache.go` | 默认缓存实现 |
+| `codec.go` | Token 编解码实现 |
+| `middleware.go` | GoFrame HTTP 中间件 |
+| `pool.go` | 续期协程池 |
+| `banner.go` | 启动横幅和配置输出 |
+| `constants.go` | 常量和错误消息 |
 
 ## 核心接口
 
@@ -146,37 +180,85 @@ middleware := dtoken.NewDefaultMiddleware(token, func(r *ghttp.Request) {
 
 ```go
 type Token interface {
-    Generate(ctx context.Context, userKey string, data any) (token string, err error)
-    Validate(ctx context.Context, token string) (data any, err error)
-    Get(ctx context.Context, userKey string) (token string, data any, err error)
-    ParseToken(ctx context.Context, token string) (userKey string, data any, err error)
+    Generate(ctx context.Context, userKey string, data g.Map) (token string, err error)
+    ValidateSession(ctx context.Context, token string) (*Session, error)
+    GetSession(ctx context.Context, userKey string) (*Session, error)
+    ParseUserKey(ctx context.Context, token string) (userKey string, err error)
+    DestroyByToken(ctx context.Context, token string) error
     Destroy(ctx context.Context, userKey string) error
-    Renew(ctx context.Context, userKey string, userCache g.Map)
     Shutdown(ctx context.Context)
     GetOptions() Options
 }
 ```
 
-### Cache 接口
-
-支持自定义缓存实现：
+认证成功后返回完整 `Session`：
 
 ```go
-type Cache interface {
-    Set(ctx context.Context, cacheKey string, cacheValue g.Map) error
-    Get(ctx context.Context, cacheKey string) (g.Map, error)
-    Remove(ctx context.Context, cacheKey string) error
+session, err := token.ValidateSession(ctx, tokenValue)
+if err != nil {
+    return err
+}
+
+userKey := session.UserKey
+data := session.Data
+```
+
+`Session.Data` 统一使用 `g.Map`，建议把扩展信息以键值对形式写入：
+
+```go
+tokenValue, err := token.Generate(ctx, "user_001", g.Map{
+    "role": "admin",
+    "name": "Tom",
+})
+```
+
+中间件认证成功后会写入三个上下文变量：
+
+| Key | 内容 |
+|-----|------|
+| `dtoken.KeyUserKey` | 当前用户标识 |
+| `dtoken.KeyData` | 登录时写入的扩展数据 |
+| `dtoken.KeySession` | 完整 Session |
+
+### Store 接口
+
+`Store` 只负责保存和读取编码后的会话字符串：
+
+```go
+type Store interface {
+    Save(ctx context.Context, userKey string, data string) error
+    Load(ctx context.Context, userKey string) (string, error)
+    Delete(ctx context.Context, userKey string) error
 }
 ```
 
-### Codec 接口
-
-支持自定义编解码实现：
+通过函数式选项注入：
 
 ```go
-type Codec interface {
+token, err := dtoken.New(
+    dtoken.WithStore(myStore),
+)
+```
+
+### TokenCodec 接口
+
+`TokenCodec` 负责把 `userKey` 编进 Token，并从 Token 中解析 `userKey`：
+
+```go
+type TokenCodec interface {
     Encode(ctx context.Context, userKey string) (token string, err error)
-    Decrypt(ctx context.Context, token string) (userKey string, err error)
+    Decode(ctx context.Context, token string) (userKey string, err error)
+}
+```
+
+### SessionCodec 接口
+
+`SessionCodec` 负责 `Session` 和存储字符串之间的编解码，默认实现使用 `gjson`：
+
+```go
+type SessionCodec interface {
+    Encode(ctx context.Context, session *Session) (string, error)
+    Decode(ctx context.Context, data string) (*Session, error)
 }
 ```
 
@@ -184,7 +266,7 @@ type Codec interface {
 
 中间件按以下优先级从请求中提取 Token：
 
-1. `Authorization: Bearer <token>` 请求头
+1. `<AuthHeaderKey>: Bearer <token>` 请求头，默认是 `Authorization`
 2. `token` 请求参数（Query / Form）
 
 ## 自动续期机制
@@ -196,6 +278,10 @@ type Codec interface {
 - 可通过 `MaxRefreshTimes` 限制最大续期次数
 - 可通过 `RenewInterval` 设置最小续期间隔，避免高并发下频繁续期
 - 续期前会二次校验缓存一致性，防止并发冲突
+
+## 多端登录复用
+
+`MultiLogin`/`WithReuseToken(true)` 表示同一个 `userKey` 重复登录时复用已有 Token。复用时不会自动覆盖已有 `Session.Data`，如果用户角色或扩展信息变化，建议先 `Destroy` 后重新 `Generate`。
 
 ## 路径排除规则
 

@@ -12,6 +12,7 @@ const (
 	DefaultCacheKey       = "DToken:"                          // Default prefix for cache keys 默认缓存 key 前缀
 	DefaultTokenDelimiter = "_"                                // Default delimiter for tokens Token 的默认分隔符
 	DefaultEncryptKey     = "12345678912345678912345678912345" // Default encryption key for token 默认 Token 加密密钥
+	DefaultAuthHeaderKey  = "Authorization"                    // Default auth header key 默认认证请求头名称
 
 	// Cache key fields 缓存 key 字段定义
 	KeyUserKey       = "userKey"          // User identifier 用户标识
