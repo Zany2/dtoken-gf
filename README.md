@@ -87,7 +87,7 @@ func main() {
 在 GoFrame 配置文件（如 `config.yaml`）中添加：
 
 ```yaml
-gToken:
+dToken:
   cacheMode: 2                # 1-gcache 2-gredis 3-gfile
   cachePreKey: "MyApp:"
   timeout: 864000000          # 10天（毫秒）
@@ -126,7 +126,7 @@ middleware := dtoken.NewDefaultMiddleware(token, func(r *ghttp.Request) {
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | CacheMode | int8 | 1 | 缓存模式：1=gcache 2=gredis 3=gfile |
-| CachePreKey | string | `GToken:` | 缓存 key 前缀 |
+| CachePreKey | string | `DToken:` | 缓存 key 前缀 |
 | Timeout | int64 | 864000000 (10天) | Token 过期时间（毫秒） |
 | MaxRefresh | int64 | Timeout/2 | 剩余时间低于此值时触发续期（毫秒） |
 | MaxRefreshTimes | int | 0 | 最大续期次数，0=不限 |
