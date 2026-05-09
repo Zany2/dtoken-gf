@@ -2,12 +2,11 @@ package dtoken_gf
 
 import (
 	"fmt"
-	"github.com/gogf/gf/v2/frame/g"
 	"runtime"
 )
 
 // Version version number 版本号
-const Version = "v1.0.0"
+const Version = "v2.0.0"
 
 const Banner = `
           ____  ______      __            
@@ -23,25 +22,6 @@ const (
 	boxWidth   = 63
 	labelWidth = 22
 )
-
-// Options defines all configuration for dToken dToken 全局配置参数
-type Options struct {
-	CacheMode        int8       // Cache mode: 1-gcache 2-gredis 3-gfile 缓存模式：1 gcache 2 gredis 3 gfile
-	CachePreKey      string     // Cache key prefix 缓存 key 前缀
-	Timeout          int64      // Token expiration time in milliseconds Token 超时时间（毫秒）
-	MaxRefresh       int64      // Max auto-refresh interval in milliseconds 最大自动刷新间隔（毫秒）
-	MaxRefreshTimes  int        // Maximum number of refresh times, 0 means unlimited 最大刷新次数，0 表示不限制
-	TokenDelimiter   string     // Token delimiter Token 分隔符
-	EncryptKey       []byte     // Token encryption key Token 加密密钥
-	MultiLogin       bool       // Reuse existing token for the same userKey 是否复用同一 userKey 的已有 Token
-	AuthExcludePaths g.SliceStr // Paths excluded from authentication 免认证路径列表
-
-	PoolMinSize       int     // Minimum pool size 最小协程数
-	PoolMaxSize       int     // Maximum pool size 最大协程数
-	PoolScaleUpRate   float64 // Scale-up threshold, expands when usage exceeds this ratio 扩容阈值，使用率超过此比例时扩容
-	PoolScaleDownRate float64 // Scale-down threshold, shrinks when usage falls below this ratio 缩容阈值，使用率低于此比例时缩容
-	RenewInterval     int64   // Minimum renewal interval in milliseconds 最小续期间隔（毫秒）
-}
 
 // PrintBanner prints startup banner only 打印启动横幅
 func PrintBanner() {
