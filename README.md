@@ -121,7 +121,7 @@ if err != nil {
 ```go
 middleware := dtoken.NewDefaultMiddleware(token, func(r *ghttp.Request) {
     r.Response.WriteJsonExit(g.Map{
-        "code":    4001,
+        "code":    401,
         "message": "认证过期，请重新登录",
         "data":    []interface{}{},
     })
