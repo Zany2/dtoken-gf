@@ -68,6 +68,12 @@ func NewRenewPoolManagerWithConfig(cfg *RenewPoolConfig) (*RenewPoolManager, err
 	if cfg.MaxSize < cfg.MinSize {
 		cfg.MaxSize = cfg.MinSize
 	}
+	if cfg.CheckInterval <= 0 {
+		cfg.CheckInterval = DefaultCheckInterval
+	}
+	if cfg.Expiry <= 0 {
+		cfg.Expiry = DefaultExpiry
+	}
 
 	mgr := &RenewPoolManager{
 		config:  cfg,

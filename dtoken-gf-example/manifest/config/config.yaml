@@ -37,7 +37,7 @@ dToken:
   cacheMode: 2                                      # 缓存模式：1-gcache 2-gredis 3-gfile
   cachePreKey: "DToken:"                            # 缓存 key 前缀
   timeout: 60000                                    # Token 过期时间，1 分钟，单位毫秒
-  maxRefresh: 30000                                 # 最大续期窗口，30 秒，单位毫秒
+  maxRefresh: 30000                                 # 续期剩余存活阈值，30 秒，单位毫秒
   maxRefreshTimes: 0                                # 最大续期次数，0 表示不限
   tokenDelimiter: "_"                               # Token 内部分隔符
   encryptKey: "12345678912345678912345678912345"    # AES 加密密钥，长度必须为 16、24 或 32 字节
@@ -50,4 +50,4 @@ dToken:
   poolMaxSize: 200                                  # 续期协程池最大容量
   poolScaleUpRate: 0.8                              # 续期协程池扩容阈值
   poolScaleDownRate: 0.3                            # 续期协程池缩容阈值
-  renewInterval: 0                                  # 最小续期间隔，单位毫秒
+  poolCheckInterval: 60000                          # 续期协程池扩缩容检查间隔，单位毫秒

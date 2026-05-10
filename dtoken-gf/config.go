@@ -47,7 +47,7 @@ func WithTimeout(timeout time.Duration) Option {
 	}
 }
 
-// WithMaxRefresh sets max refresh window 设置最大续期窗口
+// WithMaxRefresh sets remaining TTL renewal threshold 设置续期剩余存活阈值
 func WithMaxRefresh(maxRefresh time.Duration) Option {
 	return func(config *TokenConfig) {
 		config.Options.MaxRefresh = maxRefresh.Milliseconds()
@@ -58,13 +58,6 @@ func WithMaxRefresh(maxRefresh time.Duration) Option {
 func WithMaxRefreshTimes(times int) Option {
 	return func(config *TokenConfig) {
 		config.Options.MaxRefreshTimes = times
-	}
-}
-
-// WithRenewInterval sets minimum renew interval 设置最小续期间隔
-func WithRenewInterval(interval time.Duration) Option {
-	return func(config *TokenConfig) {
-		config.Options.RenewInterval = interval.Milliseconds()
 	}
 }
 
@@ -110,6 +103,13 @@ func WithRenewPool(minSize, maxSize int, scaleUpRate, scaleDownRate float64) Opt
 		config.Options.PoolMaxSize = maxSize
 		config.Options.PoolScaleUpRate = scaleUpRate
 		config.Options.PoolScaleDownRate = scaleDownRate
+	}
+}
+
+// WithRenewPoolCheckInterval sets renewal pool check interval 设置续期协程池检查间隔
+func WithRenewPoolCheckInterval(interval time.Duration) Option {
+	return func(config *TokenConfig) {
+		config.Options.PoolCheckInterval = interval.Milliseconds()
 	}
 }
 
