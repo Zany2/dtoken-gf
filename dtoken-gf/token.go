@@ -41,7 +41,12 @@ func (m *DTokenV2) Generate(ctx context.Context, userKey string, data g.Map) (to
 	if m.Options.MultiLogin {
 		session, err := m.GetSession(ctx, userKey)
 		if err == nil && session != nil && session.Token != "" {
-			return session.Token, nil
+			// Recreate expired file-cache session 重新生成文件缓存中过期的会话
+			if m.Options.CacheMode == CacheModeFile && m.isSessionExpired(session) {
+				_ = m.Destroy(ctx, session.UserKey)
+			} else {
+				return session.Token, nil
+			}
 		}
 	}
 
@@ -96,6 +101,12 @@ func (m *DTokenV2) ValidateSession(ctx context.Context, token string) (*Session,
 		return nil, gerror.NewCode(gcode.CodeInvalidParameter, MsgErrValidate)
 	}
 
+	// Check file cache expiration for file cache mode 检查文件缓存模式下的会话过期时间
+	if m.Options.CacheMode == CacheModeFile && m.isSessionExpired(session) {
+		_ = m.Destroy(ctx, session.UserKey)
+		return nil, gerror.NewCode(gcode.CodeNotAuthorized, MsgErrValidate)
+	}
+
 	// Check if renewal is needed 判断是否需要续期
 	if m.Renewer.ShouldRenew(session) {
 		m.Renewer.RenewAsync(gctx.NeverDone(ctx), session)
@@ -117,7 +128,7 @@ func (m *DTokenV2) GetSession(ctx context.Context, userKey string) (*Session, er
 		return nil, gerror.WrapCode(gcode.CodeInternalError, err)
 	}
 	if sessionData == "" {
-		return nil, gerror.NewCode(gcode.CodeInternalError, MsgErrDataEmpty)
+		return nil, gerror.NewCode(gcode.CodeNotAuthorized, MsgErrDataEmpty)
 	}
 	session, err := m.SessionCodec.Decode(ctx, sessionData)
 	if err != nil {
@@ -125,9 +136,27 @@ func (m *DTokenV2) GetSession(ctx context.Context, userKey string) (*Session, er
 		return nil, gerror.WrapCode(gcode.CodeInternalError, err)
 	}
 	if session == nil {
-		return nil, gerror.NewCode(gcode.CodeInternalError, MsgErrDataEmpty)
+		return nil, gerror.NewCode(gcode.CodeNotAuthorized, MsgErrDataEmpty)
 	}
 	return session, nil
+}
+
+// isSessionExpired checks whether session has exceeded timeout 判断会话是否超过超时时间
+func (m *DTokenV2) isSessionExpired(session *Session) bool {
+	if session == nil {
+		return true
+	}
+
+	// Use last renew time first, fallback to create time 优先使用上次续期时间，否则使用创建时间
+	refTime := session.CreateTime
+	if session.LastRenewTime > 0 {
+		refTime = session.LastRenewTime
+	}
+	if refTime <= 0 {
+		return true
+	}
+
+	return gtime.Now().TimestampMilli()-refTime >= m.Options.Timeout
 }
 
 // ParseUserKey parses userKey from token without loading session 仅从 Token 解析 userKey，不加载会话

@@ -37,22 +37,16 @@ func (r *Renewer) ShouldRenew(session *Session) bool {
 	refTime := session.CreateTime          // Reference time 参考时间
 	refreshNum := session.RefreshNum       // Renewal count 续期次数
 	lastRenewTime := session.LastRenewTime // Last renewal time 上次续期时间
-	if r.options.MaxRefresh == 0 {         // Skip renew if disabled 未启用续期则跳过
-		return false
-	}
 	if lastRenewTime > 0 {
 		refTime = lastRenewTime
 	}
 
 	elapsed := now - refTime
+	if r.options.MaxRefreshTimes > 0 && refreshNum >= r.options.MaxRefreshTimes {
+		return false
+	}
 	remaining := r.options.Timeout - elapsed
 	if remaining > r.options.MaxRefresh {
-		return false
-	}
-	if refreshNum > 0 && r.options.RenewInterval > 0 && elapsed < r.options.RenewInterval {
-		return false
-	}
-	if r.options.MaxRefreshTimes > 0 && refreshNum >= r.options.MaxRefreshTimes {
 		return false
 	}
 	return true
@@ -65,14 +59,25 @@ func (r *Renewer) RenewAsync(ctx context.Context, session *Session) {
 	}
 	err := r.pool.Submit(func() {
 		sessionData, err := r.store.Load(ctx, session.UserKey)
-		if err != nil || sessionData == "" {
+		if err != nil {
+			g.Log().Error(ctx, "[DToken] token renew load error", err) // Log renew load error 记录续期读取错误
+			return
+		}
+		if sessionData == "" {
 			return
 		}
 		currentSession, err := r.sessionCodec.Decode(ctx, sessionData)
-		if err != nil || currentSession == nil {
+		if err != nil {
+			g.Log().Error(ctx, "[DToken] token renew decode error", err) // Log renew decode error 记录续期解码错误
+			return
+		}
+		if currentSession == nil {
 			return
 		}
 		if currentSession.Token != session.Token {
+			return
+		}
+		if !r.ShouldRenew(currentSession) {
 			return
 		}
 

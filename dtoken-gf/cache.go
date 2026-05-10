@@ -3,6 +3,7 @@ package dtoken_gf
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/gogf/gf/v2/encoding/gjson"
@@ -20,6 +21,7 @@ type DefaultCache struct {
 	mode    int8          // Cache mode: 1 for gcache, 2 for gredis, 3 for gfile 缓存模式：1 为 gcache，2 为 gredis，3 为 gfile
 	preKey  string        // Cache key prefix 缓存 key 前缀
 	timeout int64         // Timeout in milliseconds 超时时间，单位毫秒
+	fileMu  sync.Mutex    // File cache write lock 文件缓存写入锁
 }
 
 // NewDefaultCache creates a new DefaultCache instance 创建新的默认缓存实例
@@ -44,16 +46,18 @@ func NewDefaultCache(mode int8, preKey string, timeout int64) *DefaultCache {
 // Save saves encoded session data 保存编码后的会话数据
 func (c *DefaultCache) Save(ctx context.Context, userKey string, data string) error {
 	if data == "" {
-		return errors.New(MsgErrDataEmpty) // Error if encoded data is empty 如果编码数据为空，返回错误
+		return errors.New(MsgErrDataEmpty) // Error if encoded data is empty 编码数据为空时返回错误
 	}
-	err := c.cache.Set(ctx, c.preKey+userKey, data, gconv.Duration(c.timeout)*time.Millisecond) // Set cache with timeout 设置缓存并设置超时
-	if err != nil {
-		return err
-	}
-	if c.mode == CacheModeFile {
-		c.writeFileCache(ctx) // Write cache to file if file cache mode is used 如果是文件缓存模式，则将缓存写入文件
-	}
-	return nil
+	return c.withFileLock(func() error {
+		err := c.cache.Set(ctx, c.preKey+userKey, data, gconv.Duration(c.timeout)*time.Millisecond)
+		if err != nil {
+			return err
+		}
+		if c.mode == CacheModeFile {
+			c.writeFileCache(ctx)
+		}
+		return nil
+	})
 }
 
 // Load retrieves encoded session data 获取编码后的会话数据
@@ -70,16 +74,28 @@ func (c *DefaultCache) Load(ctx context.Context, userKey string) (string, error)
 
 // deleteKey deletes session key 删除会话 key
 func (c *DefaultCache) deleteKey(ctx context.Context, cacheKey string) error {
-	_, err := c.cache.Remove(ctx, c.preKey+cacheKey) // Remove cache 删除缓存
-	if c.mode == CacheModeFile {
-		c.writeFileCache(ctx) // Write cache to file after removal 删除后将缓存写入文件
-	}
-	return err
+	return c.withFileLock(func() error {
+		_, err := c.cache.Remove(ctx, c.preKey+cacheKey)
+		if c.mode == CacheModeFile {
+			c.writeFileCache(ctx)
+		}
+		return err
+	})
 }
 
 // Delete deletes token session 删除 Token 会话
 func (c *DefaultCache) Delete(ctx context.Context, userKey string) error {
 	return c.deleteKey(ctx, userKey)
+}
+
+// withFileLock serializes file cache mutation and persistence 串行化文件缓存变更和落盘
+func (c *DefaultCache) withFileLock(f func() error) error {
+	if c.mode != CacheModeFile {
+		return f()
+	}
+	c.fileMu.Lock()
+	defer c.fileMu.Unlock()
+	return f()
 }
 
 // writeFileCache writes the cache data to a file 将缓存数据写入文件

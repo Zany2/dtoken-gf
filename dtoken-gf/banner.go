@@ -52,7 +52,6 @@ func PrintWithOptions(opt *Options) {
 	fmt.Print(formatLine("Timeout", fmt.Sprintf("%d ms", opt.Timeout)))
 	fmt.Print(formatLine("Max Refresh", fmt.Sprintf("%d ms", opt.MaxRefresh)))
 	fmt.Print(formatLine("Max Refresh Times", fmt.Sprintf("%d", opt.MaxRefreshTimes)))
-	fmt.Print(formatLine("Renew Interval", fmt.Sprintf("%d ms", opt.RenewInterval)))
 
 	// Token settings Token 配置
 	fmt.Println("├──────────────────────────────────────────────────────────────┤")
@@ -66,6 +65,7 @@ func PrintWithOptions(opt *Options) {
 	fmt.Print(formatLine("Pool Max Size", opt.PoolMaxSize))
 	fmt.Print(formatLine("Scale Up Rate", fmt.Sprintf("%.2f", opt.PoolScaleUpRate)))
 	fmt.Print(formatLine("Scale Down Rate", fmt.Sprintf("%.2f", opt.PoolScaleDownRate)))
+	fmt.Print(formatLine("Pool Check Interval", fmt.Sprintf("%d ms", opt.PoolCheckInterval)))
 
 	// Auth excluded paths 免认证路径
 	if len(opt.AuthExcludePaths) > 0 {

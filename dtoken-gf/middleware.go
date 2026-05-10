@@ -20,28 +20,42 @@ type Middleware struct {
 
 // NewDefaultMiddleware creates a middleware instance and uses authFailHandler when provided 创建默认中间件实例，传入 authFailHandler 时使用自定义认证失败处理方法
 func NewDefaultMiddleware(token Token, authFailHandler ...AuthFailHandler) Middleware {
-	if len(authFailHandler) > 0 {
-		return Middleware{
-			Token:           token,
-			AuthFailHandler: authFailHandler[0],
-		}
+	handler := AuthFailHandler(defaultAuthFailHandler)
+	if len(authFailHandler) > 0 && authFailHandler[0] != nil {
+		handler = authFailHandler[0]
 	}
-
-	// Default error response when validation fails 默认 Token 校验失败响应
 	return Middleware{
-		Token: token,
-		AuthFailHandler: func(r *ghttp.Request) {
-			r.Response.WriteJson(ghttp.DefaultHandlerResponse{
-				Code:    gcode.CodeNotAuthorized.Code(),
-				Message: gcode.CodeNotAuthorized.Message(),
-				Data:    []interface{}{},
-			})
-		},
+		Token:           token,
+		AuthFailHandler: handler,
 	}
+}
+
+// defaultAuthFailHandler writes default auth failure response 默认认证失败响应
+func defaultAuthFailHandler(r *ghttp.Request) {
+	r.Response.WriteJson(ghttp.DefaultHandlerResponse{
+		Code:    gcode.CodeNotAuthorized.Code(),
+		Message: gcode.CodeNotAuthorized.Message(),
+		Data:    []interface{}{},
+	})
+}
+
+// handleAuthFail calls configured handler or default handler 调用配置的认证失败处理方法或默认方法
+func (m Middleware) handleAuthFail(r *ghttp.Request) {
+	if m.AuthFailHandler != nil {
+		m.AuthFailHandler(r)
+		return
+	}
+	defaultAuthFailHandler(r)
 }
 
 // Auth performs token authentication and returns a unified response on failure 执行请求认证拦截，校验失败时返回统一错误响应
 func (m Middleware) Auth(r *ghttp.Request) {
+	if m.Token == nil {
+		// Fail safely when token instance is missing Token 实例为空时安全失败
+		m.handleAuthFail(r)
+		return
+	}
+
 	// Skip authentication if path is excluded 路径在排除列表中则跳过认证
 	if m.HasExcludePath(r) {
 		r.Middleware.Next()
@@ -51,14 +65,14 @@ func (m Middleware) Auth(r *ghttp.Request) {
 	// Extract token from request 从请求中获取 Token
 	token, err := GetRequestToken(r, m.Token.GetOptions().AuthHeaderKey)
 	if err != nil {
-		m.AuthFailHandler(r)
+		m.handleAuthFail(r)
 		return
 	}
 
 	// Validate token and retrieve session 校验 Token 并获取会话
 	session, err := m.Token.ValidateSession(r.Context(), token)
 	if err != nil {
-		m.AuthFailHandler(r)
+		m.handleAuthFail(r)
 		return
 	}
 
@@ -72,6 +86,10 @@ func (m Middleware) Auth(r *ghttp.Request) {
 
 // HasExcludePath determines if the current request path should bypass authentication 判断路径是否应跳过认证
 func (m Middleware) HasExcludePath(r *ghttp.Request) bool {
+	if m.Token == nil {
+		return false
+	}
+
 	var (
 		urlPath      = r.URL.Path
 		excludePaths = m.Token.GetOptions().AuthExcludePaths
@@ -94,7 +112,7 @@ func (m Middleware) HasExcludePath(r *ghttp.Request) bool {
 		// Prefix match, for example "/api/*" 前缀匹配，例如 /api/*
 		if strings.HasSuffix(tmpPath, "/*") {
 			tmpPath = gstr.SubStr(tmpPath, 0, len(tmpPath)-2)
-			if gstr.HasPrefix(urlPath, tmpPath) {
+			if urlPath == tmpPath || gstr.HasPrefix(urlPath, tmpPath+"/") {
 				// Path matches prefix, skip authentication 匹配前缀路径则跳过认证
 				return true
 			}

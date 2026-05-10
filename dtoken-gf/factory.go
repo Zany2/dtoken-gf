@@ -2,6 +2,7 @@ package dtoken_gf
 
 import (
 	"context"
+	"time"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gctx"
@@ -55,6 +56,7 @@ func NewTokenWithConfig(config *TokenConfig) (*DTokenV2, error) {
 		MaxSize(normalized.PoolMaxSize).
 		ScaleUpRate(normalized.PoolScaleUpRate).
 		ScaleDownRate(normalized.PoolScaleDownRate).
+		CheckInterval(time.Duration(normalized.PoolCheckInterval) * time.Millisecond).
 		Build()
 	if err != nil {
 		g.Log().Error(gctx.New(), "[DToken] renew pool init failed", err) // Log renew pool init failure 记录续期池初始化失败
