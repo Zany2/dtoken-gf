@@ -4,7 +4,7 @@ import (
 	"context"
 	"dtoken-gf-example/internal/consts"
 
-	dtoken "github.com/Zany2/dtoken-gf/dtoken-gf"
+	dtoken "github.com/Zany2/dtoken-gf/v2/dtoken-gf"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/util/gconv"
 

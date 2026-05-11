@@ -14,7 +14,7 @@
 ## 安装
 
 ```bash
-go get github.com/Zany2/dtoken-gf
+go get github.com/Zany2/dtoken-gf/v2
 ```
 
 要求：Go 1.23+，GoFrame v2.9+。
@@ -30,7 +30,7 @@ import (
     "context"
     "time"
 
-    dtoken "github.com/Zany2/dtoken-gf/dtoken-gf"
+    dtoken "github.com/Zany2/dtoken-gf/v2/dtoken-gf"
     "github.com/gogf/gf/v2/frame/g"
     "github.com/gogf/gf/v2/net/ghttp"
 )
