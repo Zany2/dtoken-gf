@@ -3,12 +3,12 @@ module dtoken-gf-example
 go 1.25.0
 
 require (
-	github.com/Zany2/dtoken-gf v0.0.0
+	github.com/Zany2/dtoken-gf/v2 v2.0.0
 	github.com/gogf/gf/contrib/nosql/redis/v2 v2.10.0
 	github.com/gogf/gf/v2 v2.10.0
 )
 
-replace github.com/Zany2/dtoken-gf => ..
+replace github.com/Zany2/dtoken-gf/v2 => ..
 
 require (
 	github.com/BurntSushi/toml v1.5.0 // indirect

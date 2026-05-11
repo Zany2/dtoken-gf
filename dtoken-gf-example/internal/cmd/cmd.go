@@ -10,7 +10,7 @@ import (
 	"dtoken-gf-example/middleware"
 	"dtoken-gf-example/token"
 
-	dtoken "github.com/Zany2/dtoken-gf/dtoken-gf"
+	dtoken "github.com/Zany2/dtoken-gf/v2/dtoken-gf"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"

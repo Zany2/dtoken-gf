@@ -1,4 +1,4 @@
-module github.com/Zany2/dtoken-gf
+module github.com/Zany2/dtoken-gf/v2
 
 go 1.23.0
 
