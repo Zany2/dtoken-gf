@@ -311,7 +311,6 @@ Bearer 请求头格式要求严格，必须是 `Bearer <token>`。
 - 续期不会阻塞当前请求。
 - 续期写回前会重新读取当前会话并校验 Token 一致性，避免旧 Token 覆盖新 Token。
 - `MaxRefreshTimes` 可限制最大续期次数。
-- 文件缓存模式会在验证时额外检查过期时间，避免进程重启后恢复已过期会话。
 
 应用退出时应调用 `Shutdown(ctx)`，以便优雅停止续期协程池。
 
@@ -319,8 +318,8 @@ Bearer 请求头格式要求严格，必须是 `Bearer <token>`。
 
 - `CacheModeCache`：使用 GoFrame `gcache` 内存缓存。
 - `CacheModeRedis`：使用 GoFrame Redis 缓存适配器，需要提前配置 GoFrame Redis。
-- `CacheModeFile`：使用内存缓存，并将数据持久化到由缓存前缀和 `dtoken.dat` 组成的临时文件。
 
+  写入时采用原子替换，避免半写入文件。
 ## 示例项目
 
 仓库中包含 GoFrame 示例项目：`dtoken-gf-example`。

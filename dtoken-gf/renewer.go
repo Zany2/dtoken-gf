@@ -2,6 +2,8 @@ package dtoken_gf
 
 import (
 	"context"
+	"sync"
+	"time"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gtime"
@@ -13,6 +15,7 @@ type Renewer struct {
 	store        Store             // Raw session store 原始会话存储
 	sessionCodec SessionCodec      // Session codec Session 编解码器
 	pool         *RenewPoolManager // Renewal pool 续期协程池
+	renewingKeys sync.Map          // Track ongoing renewals 跟踪正在进行的续期任务
 }
 
 // NewRenewer creates a Renewer instance 创建 Renewer 实例
@@ -57,18 +60,28 @@ func (r *Renewer) RenewAsync(ctx context.Context, session *Session) {
 	if session == nil || r.pool == nil || r.store == nil {
 		return
 	}
+
+	// Prevent duplicate renewal for the same userKey 防止同一 userKey 的重复续期
+	if _, loaded := r.renewingKeys.LoadOrStore(session.UserKey, true); loaded {
+		return // Already renewing 已有续期任务在执行
+	}
+
 	err := r.pool.Submit(func() {
-		sessionData, err := r.store.Load(ctx, session.UserKey)
+		defer r.renewingKeys.Delete(session.UserKey) // Cleanup flag on completion 完成后清理标记
+		renewCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		sessionData, err := r.store.Load(renewCtx, session.UserKey)
 		if err != nil {
-			g.Log().Error(ctx, "[DToken] token renew load error", err) // Log renew load error 记录续期读取错误
+			g.Log().Error(renewCtx, "[DToken] token renew load error", err) // Log renew load error 记录续期读取错误
 			return
 		}
 		if sessionData == "" {
 			return
 		}
-		currentSession, err := r.sessionCodec.Decode(ctx, sessionData)
+		currentSession, err := r.sessionCodec.Decode(renewCtx, sessionData)
 		if err != nil {
-			g.Log().Error(ctx, "[DToken] token renew decode error", err) // Log renew decode error 记录续期解码错误
+			g.Log().Error(renewCtx, "[DToken] token renew decode error", err) // Log renew decode error 记录续期解码错误
 			return
 		}
 		if currentSession == nil {
@@ -83,17 +96,18 @@ func (r *Renewer) RenewAsync(ctx context.Context, session *Session) {
 
 		currentSession.LastRenewTime = gtime.Now().TimestampMilli()
 		currentSession.RefreshNum++
-		sessionData, err = r.sessionCodec.Encode(ctx, currentSession)
+		sessionData, err = r.sessionCodec.Encode(renewCtx, currentSession)
 		if err != nil {
-			g.Log().Error(ctx, "[DToken] token renew encode error", err) // Log renew encode error 记录续期编码错误
+			g.Log().Error(renewCtx, "[DToken] token renew encode error", err) // Log renew encode error 记录续期编码错误
 			return
 		}
-		if err = r.store.Save(ctx, session.UserKey, sessionData); err != nil {
-			g.Log().Error(ctx, "[DToken] token renew save error", err) // Log renew save error 记录续期保存错误
+		if err = r.store.Save(renewCtx, session.UserKey, sessionData); err != nil {
+			g.Log().Error(renewCtx, "[DToken] token renew save error", err) // Log renew save error 记录续期保存错误
 			return
 		}
 	})
 	if err != nil {
+		r.renewingKeys.Delete(session.UserKey)                       // Cleanup flag if submit failed 提交失败时清理标记
 		g.Log().Error(ctx, "[DToken] token renew submit error", err) // Log renew submit error 记录续期任务提交错误
 	}
 }

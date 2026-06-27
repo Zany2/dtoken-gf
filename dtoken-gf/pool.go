@@ -14,11 +14,11 @@ import (
 // Default configuration constants 默认配置常量
 const (
 	DefaultMinSize       = 20               // Minimum pool size 最小协程数
-	DefaultMaxSize       = 2000             // Maximum pool size 最大协程数
+	DefaultMaxSize       = 200              // Maximum pool size 最大协程数
 	DefaultScaleUpRate   = 0.8              // Scale-up threshold, expands when usage exceeds this ratio 扩容阈值，使用率超过此比例时扩容
 	DefaultScaleDownRate = 0.3              // Scale-down threshold, shrinks when usage falls below this ratio 缩容阈值，使用率低于此比例时缩容
-	DefaultCheckInterval = time.Minute      // Interval for auto-scaling checks 检查间隔
-	DefaultExpiry        = 10 * time.Second // Idle worker expiry duration 空闲协程过期时间
+	DefaultCheckInterval = 30 * time.Second // Interval for auto-scaling checks 检查间隔
+	DefaultExpiry        = time.Minute      // Idle worker expiry duration 空闲协程过期时间
 )
 
 // RenewPoolConfig configuration for the renewal pool manager 续期池配置

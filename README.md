@@ -8,7 +8,7 @@ DToken-GF is a lightweight token authentication component for [GoFrame v2](https
 
 - GoFrame middleware for protecting routes and writing authenticated user data into request context variables.
 - Token generation and validation with the default AES + Base64 token codec.
-- Session persistence through GoFrame `gcache`, GoFrame Redis adapter, file-backed cache, or a custom store.
+- Session persistence through GoFrame `gcache`, GoFrame Redis adapter, or a custom store.
 - Session serialization through the default `gjson` codec or a custom session codec.
 - Automatic asynchronous renewal when the remaining token lifetime reaches the configured threshold.
 - Configurable authentication header, excluded paths, token delimiter, timeout, renewal limits, and renewal worker pool.
@@ -145,7 +145,7 @@ When `cacheMode` is `2`, configure GoFrame Redis before creating the token insta
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `CacheMode` | `int8` | `1` | Storage mode: `1` = `gcache`, `2` = Redis, `3` = file-backed cache. |
+| `CacheMode` | `int8` | `1` | Storage mode: `1` = `gcache`, `2` = Redis. |
 | `CachePreKey` | `string` | `DToken:` | Prefix for session storage keys. |
 | `Timeout` | `int64` | `864000000` | Token/session timeout in milliseconds. |
 | `MaxRefresh` | `int64` | `Timeout / 2` | Renewal threshold. Renewal is triggered when the remaining lifetime is less than or equal to this value. |
@@ -311,7 +311,6 @@ When a validated session has a remaining lifetime less than or equal to `MaxRefr
 - Renewal does not block the current request.
 - Before renewal writes the session back, it reloads the current session and checks token consistency to avoid replacing a newer token with an old one.
 - `MaxRefreshTimes` can limit how many times a session may be renewed.
-- File cache mode performs an additional expiration check during validation to avoid restoring expired sessions after process restart.
 
 Call `Shutdown(ctx)` when the application exits to stop the renewal pool gracefully.
 
@@ -319,7 +318,6 @@ Call `Shutdown(ctx)` when the application exits to stop the renewal pool gracefu
 
 - `CacheModeCache`: uses GoFrame `gcache` in-memory cache.
 - `CacheModeRedis`: uses GoFrame Redis cache adapter and requires GoFrame Redis configuration.
-- `CacheModeFile`: uses memory cache and persists data to a temporary file named from the cache prefix and `dtoken.dat`.
 
 ## Example Project
 
@@ -346,7 +344,7 @@ Useful files:
 | `session.go` | Session data model. |
 | `codec_token.go` | Token codec interfaces and default AES + Base64 implementation. |
 | `codec_session.go` | Session codec interfaces and default `gjson` implementation. |
-| `cache.go` | Built-in store implementation for cache, Redis, and file modes. |
+| `cache.go` | Built-in store implementation for cache and Redis modes. |
 | `middleware.go` | GoFrame HTTP authentication middleware. |
 | `renewer.go` | Automatic renewal logic. |
 | `pool.go` | Renewal worker pool management. |

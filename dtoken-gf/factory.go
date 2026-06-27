@@ -65,7 +65,7 @@ func NewTokenWithConfig(config *TokenConfig) (*DTokenV2, error) {
 
 	store := config.Store
 	if store == nil {
-		defaultCache := NewDefaultCache(normalized.CacheMode, normalized.CachePreKey, normalized.Timeout)
+		defaultCache := NewDefaultCache(normalized.CacheMode, normalized.CachePreKey, normalized.Timeout, normalized.RedisName)
 		store = defaultCache
 	}
 

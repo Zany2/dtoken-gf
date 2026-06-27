@@ -40,6 +40,13 @@ func WithCachePreKey(preKey string) Option {
 	}
 }
 
+// WithRedisName sets redis instance name 设置 Redis 实例名称
+func WithRedisName(name string) Option {
+	return func(config *TokenConfig) {
+		config.Options.RedisName = name
+	}
+}
+
 // WithTimeout sets token timeout 设置 Token 超时时间
 func WithTimeout(timeout time.Duration) Option {
 	return func(config *TokenConfig) {

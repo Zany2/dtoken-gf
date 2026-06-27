@@ -47,7 +47,7 @@ func PrintWithOptions(opt *Options) {
 	fmt.Println("├──────────────────────────────────────────────────────────────┤")
 
 	// Cache and storage 缓存与存储配置
-	fmt.Print(formatLine("Cache Mode", fmt.Sprintf("%d (1-gcache 2-gredis 3-gfile)", opt.CacheMode)))
+	fmt.Print(formatLine("Cache Mode", fmt.Sprintf("%d (1=memory 2=redis)", opt.CacheMode)))
 	fmt.Print(formatLine("Cache PreKey", opt.CachePreKey))
 	fmt.Print(formatLine("Timeout", fmt.Sprintf("%d ms", opt.Timeout)))
 	fmt.Print(formatLine("Max Refresh", fmt.Sprintf("%d ms", opt.MaxRefresh)))
