@@ -1,7 +1,7 @@
 package dtoken_gf
 
 const (
-	DTokenCfgName = "dToken" // Global configuration node name. 全局配置节点名称
+	DTokenCfgName = "dToken" // Global configuration node name. 全局配置节点名
 
 	CacheModeCache = 1 // Cache mode using in-memory cache. 内存缓存模式
 	CacheModeRedis = 2 // Cache mode using Redis. Redis 缓存模式
@@ -23,10 +23,10 @@ const (
 )
 
 const (
-	MsgErrUserKeyEmpty  = "userKey empty"       // Error message when userKey is empty. 用户标识为空时的错误信息
-	MsgErrTokenEmpty    = "token is empty"      // Error message when token is empty. Token 为空时的错误信息
-	MsgErrTokenLen      = "token len error"     // Error message when token length is incorrect. Token 长度不正确时的错误信息
-	MsgErrValidate      = "user validate error" // Error message for user validation failure. 用户校验失败时的错误信息
-	MsgErrTokenMismatch = "token mismatch"      // Error message when token does not match. Token 不一致时的错误信息
-	MsgErrDataEmpty     = "cache value is nil"  // Error message when cache value is nil. 缓存值为空时的错误信息
+	MsgErrUserKeyEmpty  = "userKey empty"       // Error message when userKey is empty. userKey 为空
+	MsgErrTokenEmpty    = "token is empty"      // Error message when token is empty. token 为空
+	MsgErrTokenLen      = "token len error"     // Error message when token length is incorrect. token 长度错误
+	MsgErrValidate      = "user validate error" // Error message for user validation failure. 用户校验失败
+	MsgErrTokenMismatch = "token mismatch"      // Error message when token does not match. token 不一致
+	MsgErrDataEmpty     = "cache value is nil"  // Error message when cache value is nil. 缓存值为空
 )

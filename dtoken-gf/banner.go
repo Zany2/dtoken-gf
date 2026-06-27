@@ -5,7 +5,7 @@ import (
 	"runtime"
 )
 
-// Version version number 版本号
+// Version version number. 版本号。
 const Version = "v2.0.0"
 
 const Banner = `
@@ -23,7 +23,7 @@ const (
 	labelWidth = 22
 )
 
-// PrintBanner prints startup banner only 打印启动横幅
+// PrintBanner prints startup banner only. 仅打印启动横幅。
 func PrintBanner() {
 	fmt.Printf(Banner, Version)
 	fmt.Printf(":: Go Version ::                              %s\n", runtime.Version())
@@ -31,55 +31,55 @@ func PrintBanner() {
 	fmt.Println()
 }
 
-// formatLine formats configuration rows with alignment 格式化配置行
+// formatLine formats configuration rows with alignment. 格式化配置行。
 func formatLine(label string, value any) string {
 	valueStr := fmt.Sprintf("%v", value)
 	valueWidth := boxWidth - labelWidth - 5
 	return fmt.Sprintf("│ %-*s: %-*s │\n", labelWidth, label, valueWidth, valueStr)
 }
 
-// PrintWithOptions prints banner with configuration summary 打印启动横幅和配置信息
+// PrintWithOptions prints banner with configuration summary. 打印横幅和配置摘要。
 func PrintWithOptions(opt *Options) {
 	PrintBanner()
 
-	fmt.Println("┌──────────────────────────────────────────────────────────────┐")
-	fmt.Println("│                       DToken Configuration                   │")
-	fmt.Println("├──────────────────────────────────────────────────────────────┤")
+	fmt.Println("┌─────────────────────────────────────────────────────────────┐")
+	fmt.Println("│                     DToken Configuration                   │")
+	fmt.Println("├─────────────────────────────────────────────────────────────┤")
 
-	// Cache and storage 缓存与存储配置
+	// Cache and storage. 缓存与存储配置
 	fmt.Print(formatLine("Cache Mode", fmt.Sprintf("%d (1=memory 2=redis)", opt.CacheMode)))
 	fmt.Print(formatLine("Cache PreKey", opt.CachePreKey))
 	fmt.Print(formatLine("Timeout", fmt.Sprintf("%d ms", opt.Timeout)))
 	fmt.Print(formatLine("Max Refresh", fmt.Sprintf("%d ms", opt.MaxRefresh)))
 	fmt.Print(formatLine("Max Refresh Times", fmt.Sprintf("%d", opt.MaxRefreshTimes)))
 
-	// Token settings Token 配置
-	fmt.Println("├──────────────────────────────────────────────────────────────┤")
+	// Token settings. Token 配置
+	fmt.Println("├─────────────────────────────────────────────────────────────┤")
 	fmt.Print(formatLine("Token Delimiter", opt.TokenDelimiter))
 	fmt.Print(formatLine("Multi Login", fmt.Sprintf("%t", opt.MultiLogin)))
 	fmt.Print(formatLine("Encrypt Key", maskKey(string(opt.EncryptKey))))
 
-	// Pool settings 协程池配置
-	fmt.Println("├──────────────────────────────────────────────────────────────┤")
+	// Pool settings. 协程池配置
+	fmt.Println("├─────────────────────────────────────────────────────────────┤")
 	fmt.Print(formatLine("Pool Min Size", opt.PoolMinSize))
 	fmt.Print(formatLine("Pool Max Size", opt.PoolMaxSize))
 	fmt.Print(formatLine("Scale Up Rate", fmt.Sprintf("%.2f", opt.PoolScaleUpRate)))
 	fmt.Print(formatLine("Scale Down Rate", fmt.Sprintf("%.2f", opt.PoolScaleDownRate)))
 	fmt.Print(formatLine("Pool Check Interval", fmt.Sprintf("%d ms", opt.PoolCheckInterval)))
 
-	// Auth excluded paths 免认证路径
+	// Auth excluded paths. 免认证路径
 	if len(opt.AuthExcludePaths) > 0 {
-		fmt.Println("├──────────────────────────────────────────────────────────────┤")
+		fmt.Println("├─────────────────────────────────────────────────────────────┤")
 		for _, path := range opt.AuthExcludePaths {
 			fmt.Print(formatLine("Auth Exclude Path", path))
 		}
 	}
 
-	fmt.Println("└──────────────────────────────────────────────────────────────┘")
+	fmt.Println("└─────────────────────────────────────────────────────────────┘")
 	fmt.Println()
 }
 
-// maskKey hides encryption key for display 对加密密钥进行脱敏展示
+// maskKey hides encryption key for display. 对加密密钥进行脱敏展示。
 func maskKey(key string) string {
 	if len(key) <= 6 {
 		return "***"

@@ -8,7 +8,7 @@ import (
 	"github.com/gogf/gf/v2/os/gctx"
 )
 
-// Options groups all configurable values for dToken.
+// Options groups all configurable values for dToken. 配置项集合
 type Options struct {
 	// CacheMode selects the built-in cache backend. 缓存模式：1=内存，2=Redis。
 	CacheMode int8
@@ -40,7 +40,7 @@ type Options struct {
 	// AuthHeaderKey is the request header used to carry the token. 认证请求头名称。
 	AuthHeaderKey string
 
-	// AuthExcludePaths lists paths that bypass authentication. 免认证路径列表，支持精确匹配和以 /* 结尾的前缀匹配。
+	// AuthExcludePaths lists paths that bypass authentication. 认证豁免路径列表，支持精确匹配和以 /* 结尾的前缀匹配。
 	AuthExcludePaths g.SliceStr
 
 	// PoolMinSize is the minimum size of the renewal worker pool. 续期协程池最小值，单位：个。
@@ -59,7 +59,7 @@ type Options struct {
 	PoolCheckInterval int64
 }
 
-// NormalizeOptions applies default values only.
+// NormalizeOptions applies default values only. 仅补全默认值。
 func NormalizeOptions(options Options) Options {
 	if options.CacheMode == 0 {
 		options.CacheMode = CacheModeCache
@@ -106,7 +106,7 @@ func NormalizeOptions(options Options) Options {
 	return options
 }
 
-// ValidateOptions validates and fixes a few safe invalid combinations.
+// ValidateOptions validates and fixes a few safe invalid combinations. 校验并修正部分安全的非法组合。
 func ValidateOptions(options *Options) error {
 	if options == nil {
 		return fmt.Errorf("invalid config: options is nil | 配置不能为空")
@@ -131,7 +131,7 @@ func ValidateOptions(options *Options) error {
 		}
 	}
 	if options.MaxRefreshTimes < 0 {
-		g.Log().Warning(gctx.New(), "[DToken] invalid config: MaxRefreshTimes < 0, reset to 0 | 已自动修正为 0 (不限制续期次数)")
+		g.Log().Warning(gctx.New(), "[DToken] invalid config: MaxRefreshTimes < 0, reset to 0 | 已自动修正为 0（不限制续期次数）")
 		options.MaxRefreshTimes = 0
 	}
 	if options.PoolMaxSize < options.PoolMinSize {
@@ -153,12 +153,12 @@ func ValidateOptions(options *Options) error {
 		return fmt.Errorf("invalid config: TokenDelimiter must be one of _ - . : | ~ | TokenDelimiter 必须是 _ - . : | ~ 之一")
 	}
 	if options.CacheMode != CacheModeCache && options.CacheMode != CacheModeRedis {
-		return fmt.Errorf("invalid config: CacheMode must be 1 (memory) or 2 (redis) | CacheMode 必须是 1(内存) 或 2(Redis)")
+		return fmt.Errorf("invalid config: CacheMode must be 1 (memory) or 2 (redis) | CacheMode 必须是 1（内存）或 2（Redis）")
 	}
 	return nil
 }
 
-// isValidTokenDelimiter checks whether the delimiter is a safe single character.
+// isValidTokenDelimiter checks whether the delimiter is a safe single character. 判断分隔符是否是安全的单字符。
 func isValidTokenDelimiter(delimiter string) bool {
 	return len(delimiter) == 1 && strings.Contains("_-.:|~", delimiter)
 }
