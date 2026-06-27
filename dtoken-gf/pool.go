@@ -13,12 +13,12 @@ import (
 
 // Default configuration constants 默认配置常量
 const (
-	DefaultMinSize       = 100              // Minimum pool size 最小协程数
-	DefaultMaxSize       = 2000             // Maximum pool size 最大协程数
+	DefaultMinSize       = 20               // Minimum pool size 最小协程数
+	DefaultMaxSize       = 200              // Maximum pool size 最大协程数
 	DefaultScaleUpRate   = 0.8              // Scale-up threshold, expands when usage exceeds this ratio 扩容阈值，使用率超过此比例时扩容
 	DefaultScaleDownRate = 0.3              // Scale-down threshold, shrinks when usage falls below this ratio 缩容阈值，使用率低于此比例时缩容
-	DefaultCheckInterval = time.Minute      // Interval for auto-scaling checks 检查间隔
-	DefaultExpiry        = 10 * time.Second // Idle worker expiry duration 空闲协程过期时间
+	DefaultCheckInterval = 30 * time.Second // Interval for auto-scaling checks 检查间隔
+	DefaultExpiry        = time.Minute      // Idle worker expiry duration 空闲协程过期时间
 )
 
 // RenewPoolConfig configuration for the renewal pool manager 续期池配置
@@ -67,6 +67,12 @@ func NewRenewPoolManagerWithConfig(cfg *RenewPoolConfig) (*RenewPoolManager, err
 	}
 	if cfg.MaxSize < cfg.MinSize {
 		cfg.MaxSize = cfg.MinSize
+	}
+	if cfg.CheckInterval <= 0 {
+		cfg.CheckInterval = DefaultCheckInterval
+	}
+	if cfg.Expiry <= 0 {
+		cfg.Expiry = DefaultExpiry
 	}
 
 	mgr := &RenewPoolManager{
@@ -120,12 +126,17 @@ func (m *RenewPoolManager) initPool() error {
 // Submit submits a renewal task 提交续期任务
 func (m *RenewPoolManager) Submit(task func()) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if !m.started {
+		m.mu.Unlock()
 		return fmt.Errorf("RenewPool not started")
 	}
+	pool := m.pool
+	m.mu.Unlock()
 
-	return m.pool.Submit(task)
+	if pool == nil || pool.IsClosed() {
+		return fmt.Errorf("RenewPool not started")
+	}
+	return pool.Submit(task)
 }
 
 // Stop stops the auto-scaling process 停止自动扩缩容
@@ -142,7 +153,7 @@ func (m *RenewPoolManager) Stop() {
 
 	if pool != nil && !pool.IsClosed() {
 		if err := pool.ReleaseTimeout(10 * time.Second); err != nil {
-			g.Log().Error(gctx.New(), "[DToken]renew pool release error", err) // Log pool release error 记录协程池释放错误
+			g.Log().Error(gctx.New(), "[DToken] renew pool release error", err) // Log pool release error 记录协程池释放错误
 		}
 	}
 }
@@ -156,10 +167,18 @@ func (m *RenewPoolManager) autoScale() {
 		select {
 		case <-ticker.C:
 			m.mu.Lock() // Protect concurrent access 加锁防止并发冲突
+			if !m.started || m.pool == nil || m.pool.IsClosed() {
+				m.mu.Unlock()
+				return
+			}
 
 			// Get current pool stats 获取当前运行状态
-			running := m.pool.Running()                   // Number of active goroutines 当前正在执行的任务数
-			capacity := m.pool.Cap()                      // Current pool capacity 当前协程池容量
+			running := m.pool.Running() // Number of active goroutines 当前正在执行的任务数
+			capacity := m.pool.Cap()    // Current pool capacity 当前协程池容量
+			if capacity <= 0 {
+				m.mu.Unlock()
+				continue
+			}
 			usage := float64(running) / float64(capacity) // Current usage ratio 当前使用率，运行数除以总容量
 
 			switch {
@@ -170,7 +189,6 @@ func (m *RenewPoolManager) autoScale() {
 					newCap = m.config.MaxSize
 				}
 				m.pool.Tune(newCap) // Apply new pool capacity 调整 ants 池容量
-				fmt.Printf("RenewPool Scale up: %d → %d (usage %.0f%%)\n", capacity, newCap, usage*100)
 
 			// Reduce if usage is below threshold and capacity is above MinSize 使用率低于缩容阈值且容量大于最小值时缩容
 			case usage < m.config.ScaleDownRate && capacity > m.config.MinSize:
@@ -179,7 +197,6 @@ func (m *RenewPoolManager) autoScale() {
 					newCap = m.config.MinSize
 				}
 				m.pool.Tune(newCap) // Apply new pool capacity 调整 ants 池容量
-				fmt.Printf("RenewPool Scale down: %d → %d (usage %.0f%%)\n", capacity, newCap, usage*100)
 			}
 
 			m.mu.Unlock() // Unlock after adjustment 解锁
@@ -195,16 +212,20 @@ func (m *RenewPoolManager) autoScale() {
 func (m *RenewPoolManager) Stats() (running, capacity int, usage float64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	running = m.pool.Running()                   // Active tasks 当前运行任务数
-	capacity = m.pool.Cap()                      // Pool capacity 当前池容量
+	if !m.started || m.pool == nil || m.pool.IsClosed() {
+		return 0, 0, 0
+	}
+	running = m.pool.Running() // Active tasks 当前运行任务数
+	capacity = m.pool.Cap()    // Pool capacity 当前池容量
+	if capacity <= 0 {
+		return running, capacity, 0
+	}
 	usage = float64(running) / float64(capacity) // Usage ratio 当前使用率
 	return
 }
 
-// PrintStatus prints current pool status 打印池状态
+// PrintStatus keeps compatibility and does not print logs 保留兼容方法，不打印日志
 func (m *RenewPoolManager) PrintStatus() {
-	r, c, u := m.Stats()
-	fmt.Printf("RenewPool Running: %d, Capacity: %d, Usage: %.1f%%\n", r, c, u*100)
 }
 
 // RenewPoolBuilder builder for RenewPoolManager RenewPoolManager 构造器

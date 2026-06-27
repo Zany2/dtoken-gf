@@ -1,214 +1,364 @@
 # DToken-GF
 
-基于 [GoFrame](https://goframe.org) 框架的轻量级 Token 认证插件，支持 AES 加密、多缓存模式、自动续期和动态协程池。
+English | [简体中文](README_zh.md)
 
-## 特性
+DToken-GF is a lightweight token authentication component for [GoFrame v2](https://goframe.org/). It provides token generation, token validation middleware, session storage, automatic renewal, and pluggable codecs for GoFrame HTTP services.
 
-- Token 生成与校验：基于 AES 加密 + Base64 编码，安全可靠
-- 多缓存模式：支持内存缓存（gcache）、Redis（gredis）、文件缓存（gfile）
-- 自动续期：请求验证时自动异步续期，基于 [ants](https://github.com/panjf2000/ants) 动态协程池
-- 中间件集成：开箱即用的 GoFrame HTTP 中间件，支持路径排除（精确匹配 / 前缀通配）
-- 多端登录控制：可配置是否允许同一用户多端复用 Token
-- 灵活配置：支持代码配置和 GoFrame 配置文件两种方式
+## Features
 
-## 安装
+- GoFrame middleware for protecting routes and writing authenticated user data into request context variables.
+- Token generation and validation with the default AES + Base64 token codec.
+- Session persistence through GoFrame `gcache`, GoFrame Redis adapter, or a custom store.
+- Session serialization through the default `gjson` codec or a custom session codec.
+- Automatic asynchronous renewal when the remaining token lifetime reaches the configured threshold.
+- Configurable authentication header, excluded paths, token delimiter, timeout, renewal limits, and renewal worker pool.
+
+## Requirements
+
+- Go 1.23+
+- GoFrame v2.9+
+
+## Installation
 
 ```bash
-go get github.com/Zany2/dtoken-gf
+go get github.com/Zany2/dtoken-gf/v2
 ```
 
-要求：Go 1.23+，GoFrame v2.9+
+Import the package with an alias because the implementation lives in the `dtoken-gf` subdirectory:
 
-## 快速开始
+```go
+import dtoken "github.com/Zany2/dtoken-gf/v2/dtoken-gf"
+```
 
-### 1. 代码方式初始化
+## Quick Start
 
 ```go
 package main
 
 import (
+    "context"
+    "time"
+
+    dtoken "github.com/Zany2/dtoken-gf/v2/dtoken-gf"
     "github.com/gogf/gf/v2/frame/g"
     "github.com/gogf/gf/v2/net/ghttp"
-    dtoken "github.com/Zany2/dtoken-gf/dtoken-gf"
 )
 
 func main() {
+    token, err := dtoken.New(
+        dtoken.WithCacheMode(dtoken.CacheModeCache),
+        dtoken.WithCachePreKey("MyApp:"),
+        dtoken.WithTimeout(10*24*time.Hour),
+        dtoken.WithMaxRefresh(5*24*time.Hour),
+        dtoken.WithMaxRefreshTimes(0),
+        dtoken.WithEncryptKey([]byte("12345678912345678912345678912345")),
+        dtoken.WithReuseToken(true),
+        dtoken.WithAuthHeaderKey("Authorization"),
+        dtoken.WithAuthExcludePaths("/login", "/public/*"),
+        dtoken.WithRenewPool(10, 200, 0.8, 0.3),
+        dtoken.WithRenewPoolCheckInterval(time.Minute),
+    )
+    if err != nil {
+        panic(err)
+    }
+    defer token.Shutdown(context.Background())
+
+    authMiddleware := dtoken.NewDefaultMiddleware(token)
     s := g.Server()
 
-    // 创建 Token 实例
-    token := dtoken.NewDefaultToken(dtoken.Options{
-        CacheMode:   dtoken.CacheModeCache, // 1-内存 2-Redis 3-文件
-        CachePreKey: "MyApp:",
-        Timeout:     10 * 24 * 60 * 60 * 1000, // 10天（毫秒）
-        MaxRefresh:  5 * 24 * 60 * 60 * 1000,  // 5天内自动续期
-        EncryptKey:  []byte("12345678912345678912345678912345"), // 必须 16/24/32 字节
-        MultiLogin:  true,
-        AuthExcludePaths: g.SliceStr{"/login", "/register", "/public/*"},
-    })
-
-    // 创建中间件
-    middleware := dtoken.NewDefaultMiddleware(token)
-
-    // 注册路由
     s.Group("/", func(group *ghttp.RouterGroup) {
-        group.Middleware(middleware.Auth)
+        group.Middleware(authMiddleware.Auth)
 
         group.POST("/login", func(r *ghttp.Request) {
-            // 生成 Token
-            t, err := token.Generate(r.Context(), "user_001", g.Map{"role": "admin"})
+            tokenValue, err := token.Generate(r.Context(), "user_001", g.Map{
+                "userName": "demo",
+            })
             if err != nil {
-                r.Response.WriteJsonExit(g.Map{"code": 1, "msg": err.Error()})
+                r.Response.WriteJsonExit(g.Map{"code": 500, "message": err.Error()})
             }
-            r.Response.WriteJson(g.Map{"code": 0, "token": t})
-        })
-
-        group.POST("/logout", func(r *ghttp.Request) {
-            // 销毁 Token
-            _ = token.Destroy(r.Context(), "user_001")
-            r.Response.WriteJson(g.Map{"code": 0, "msg": "ok"})
+            r.Response.WriteJsonExit(g.Map{
+                "code":      0,
+                "token":     tokenValue,
+                "tokenType": "Bearer",
+            })
         })
 
         group.GET("/profile", func(r *ghttp.Request) {
-            // 从上下文获取用户数据
-            data := r.GetCtxVar(dtoken.KeyUserKey)
-            r.Response.WriteJson(g.Map{"code": 0, "data": data})
+            userKey := r.GetCtxVar(dtoken.KeyUserKey).String()
+            data := r.GetCtxVar(dtoken.KeyData).Map()
+            r.Response.WriteJsonExit(g.Map{
+                "code":    0,
+                "userKey": userKey,
+                "data":    data,
+            })
         })
     })
-
-    // 优雅关闭
-    defer token.Shutdown(nil)
 
     s.Run()
 }
 ```
 
-### 2. 配置文件方式初始化
+## Configuration
 
-在 GoFrame 配置文件（如 `config.yaml`）中添加：
+DToken-GF can also be initialized from the GoFrame global configuration node `dToken`.
 
 ```yaml
+redis:
+  default:
+    address: 127.0.0.1:6379
+    db: 0
+    pass: ""
+
 dToken:
-  cacheMode: 2                # 1-gcache 2-gredis 3-gfile
-  cachePreKey: "MyApp:"
-  timeout: 864000000          # 10天（毫秒）
-  maxRefresh: 432000000       # 5天（毫秒）
-  maxRefreshTimes: 0          # 最大续期次数，0=不限
+  cacheMode: 2
+  cachePreKey: "DToken:"
+  timeout: 60000
+  maxRefresh: 30000
+  maxRefreshTimes: 0
   tokenDelimiter: "_"
   encryptKey: "12345678912345678912345678912345"
-  multiLogin: true
+  multiLogin: false
+  authHeaderKey: "Authorization"
   authExcludePaths:
-    - "/login"
-    - "/public/*"
-  poolMinSize: 100
-  poolMaxSize: 2000
+    - "/api/v1/health"
+    - "/api/v1/auth/login"
+  poolMinSize: 10
+  poolMaxSize: 200
   poolScaleUpRate: 0.8
   poolScaleDownRate: 0.3
-  renewInterval: 60000        # 最小续期间隔（毫秒）
+  poolCheckInterval: 60000
 ```
+
+Initialize from configuration:
 
 ```go
-token := dtoken.NewDefaultTokenByConfig()
+token, err := dtoken.NewFromConfig(ctx)
+if err != nil {
+    return err
+}
+defer token.Shutdown(ctx)
 ```
 
-### 3. 自定义校验失败响应
+When `cacheMode` is `2`, configure GoFrame Redis before creating the token instance. For local or lightweight use, set `cacheMode` to `1` for in-memory cache.
 
-```go
-middleware := dtoken.NewDefaultMiddleware(token, func(r *ghttp.Request) {
-    r.Response.WriteJsonExit(g.Map{
-        "code": 401,
-        "msg":  "未授权，请重新登录",
-    })
-})
-```
+## Options
 
-## 配置参数
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `CacheMode` | `int8` | `1` | Storage mode: `1` = `gcache`, `2` = Redis. |
+| `CachePreKey` | `string` | `DToken:` | Prefix for session storage keys. |
+| `Timeout` | `int64` | `864000000` | Token/session timeout in milliseconds. |
+| `MaxRefresh` | `int64` | `Timeout / 2` | Renewal threshold. Renewal is triggered when the remaining lifetime is less than or equal to this value. |
+| `MaxRefreshTimes` | `int` | `0` | Maximum number of renewals. `0` means unlimited. |
+| `EncryptKey` | `[]byte` | built-in key | AES key used by the default token codec. Length must be 16, 24, or 32 bytes. |
+| `TokenDelimiter` | `string` | `_` | Internal token delimiter. Must be one of `_`, `-`, `.`, `:`, `\|`, `~`. |
+| `MultiLogin` | `bool` | `false` | Reuse an existing token for the same `userKey` when set to `true`. |
+| `AuthHeaderKey` | `string` | `Authorization` | Header name used by the middleware to read the token. |
+| `AuthExcludePaths` | `[]string` | empty | Paths that skip authentication. Supports exact paths and prefix patterns ending with `/*`. |
+| `PoolMinSize` | `int` | `20` | Minimum size of the asynchronous renewal worker pool. |
+| `PoolMaxSize` | `int` | `2000` | Maximum size of the asynchronous renewal worker pool. |
+| `PoolScaleUpRate` | `float64` | `0.8` | Pool scale-up threshold. Must satisfy `0 < down < up <= 1`. |
+| `PoolScaleDownRate` | `float64` | `0.3` | Pool scale-down threshold. Must satisfy `0 < down < up <= 1`. |
+| `PoolCheckInterval` | `int64` | `60000` | Pool auto-scaling check interval in milliseconds. |
 
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| CacheMode | int8 | 1 | 缓存模式：1=gcache 2=gredis 3=gfile |
-| CachePreKey | string | `DToken:` | 缓存 key 前缀 |
-| Timeout | int64 | 864000000 (10天) | Token 过期时间（毫秒） |
-| MaxRefresh | int64 | Timeout/2 | 剩余时间低于此值时触发续期（毫秒） |
-| MaxRefreshTimes | int | 0 | 最大续期次数，0=不限 |
-| RenewInterval | int64 | 0 | 最小续期间隔（毫秒），防止频繁续期 |
-| EncryptKey | []byte | 内置默认值 | AES 加密密钥，长度必须为 16/24/32 字节 |
-| TokenDelimiter | string | `_` | Token 内部分隔符 |
-| MultiLogin | bool | false | 是否允许多端登录复用 Token |
-| AuthExcludePaths | []string | 空 | 免认证路径，支持 `/*` 通配 |
-| PoolMinSize | int | 100 | 续期协程池最小容量 |
-| PoolMaxSize | int | 2000 | 续期协程池最大容量 |
-| PoolScaleUpRate | float64 | 0.8 | 协程池扩容阈值（使用率） |
-| PoolScaleDownRate | float64 | 0.3 | 协程池缩容阈值（使用率） |
+For production, always configure a project-specific `EncryptKey`. Do not rely on the built-in default key.
 
-## 核心接口
+## Core API
 
-### Token 接口
+### Token
 
 ```go
 type Token interface {
-    Generate(ctx context.Context, userKey string, data any) (token string, err error)
-    Validate(ctx context.Context, token string) (data any, err error)
-    Get(ctx context.Context, userKey string) (token string, data any, err error)
-    ParseToken(ctx context.Context, token string) (userKey string, data any, err error)
+    Generate(ctx context.Context, userKey string, data g.Map) (token string, err error)
+    ValidateSession(ctx context.Context, token string) (*Session, error)
+    GetSession(ctx context.Context, userKey string) (*Session, error)
+    ParseUserKey(ctx context.Context, token string) (userKey string, err error)
+    DestroyByToken(ctx context.Context, token string) error
     Destroy(ctx context.Context, userKey string) error
-    Renew(ctx context.Context, userKey string, userCache g.Map)
     Shutdown(ctx context.Context)
     GetOptions() Options
 }
 ```
 
-### Cache 接口
+Create instances through `New`, `NewToken`, `NewTokenWithConfig`, or `NewFromConfig`.
 
-支持自定义缓存实现：
+### Session
+
+`Session` stores the current token state for one `userKey`.
 
 ```go
-type Cache interface {
-    Set(ctx context.Context, cacheKey string, cacheValue g.Map) error
-    Get(ctx context.Context, cacheKey string) (g.Map, error)
-    Remove(ctx context.Context, cacheKey string) error
+type Session struct {
+    UserKey       string
+    Token         string
+    Data          g.Map
+    RefreshNum    int
+    CreateTime    int64
+    LastRenewTime int64
 }
 ```
 
-### Codec 接口
+### Store
 
-支持自定义编解码实现：
+`Store` handles encoded session strings. It does not directly manage `Session` objects.
 
 ```go
-type Codec interface {
+type Store interface {
+    Save(ctx context.Context, userKey string, data string) error
+    Load(ctx context.Context, userKey string) (string, error)
+    Delete(ctx context.Context, userKey string) error
+}
+```
+
+Use a custom store when your project already has a storage layer:
+
+```go
+token, err := dtoken.New(
+    dtoken.WithStore(myStore),
+)
+```
+
+Custom stores are responsible for their own TTL and expiration policy. `CacheMode` only affects the built-in store.
+
+### TokenCodec
+
+`TokenCodec` controls how `userKey` values are encoded into token strings and decoded back.
+
+```go
+type TokenCodec interface {
     Encode(ctx context.Context, userKey string) (token string, err error)
-    Decrypt(ctx context.Context, token string) (userKey string, err error)
+    Decode(ctx context.Context, token string) (userKey string, err error)
 }
 ```
 
-## Token 提取方式
+Default implementation:
 
-中间件按以下优先级从请求中提取 Token：
+```go
+dtoken.NewDefaultTokenCodec(delimiter, encryptKey)
+```
 
-1. `Authorization: Bearer <token>` 请求头
-2. `token` 请求参数（Query / Form）
+### SessionCodec
 
-## 自动续期机制
+`SessionCodec` controls how `Session` values are serialized into storage strings and decoded back.
 
-当 Token 剩余有效期低于 `MaxRefresh` 时，验证请求会自动触发异步续期：
+```go
+type SessionCodec interface {
+    Encode(ctx context.Context, session *Session) (string, error)
+    Decode(ctx context.Context, data string) (*Session, error)
+}
+```
 
-- 续期通过 ants 协程池异步执行，不阻塞请求
-- 协程池支持动态扩缩容（基于使用率自动调整容量）
-- 可通过 `MaxRefreshTimes` 限制最大续期次数
-- 可通过 `RenewInterval` 设置最小续期间隔，避免高并发下频繁续期
-- 续期前会二次校验缓存一致性，防止并发冲突
+Default implementation:
 
-## 路径排除规则
+```go
+dtoken.NewDefaultSessionCodec()
+```
 
-`AuthExcludePaths` 支持两种匹配模式：
+## Middleware
 
-- 精确匹配：`/login` — 仅匹配该路径
-- 前缀通配：`/api/*` — 匹配所有以 `/api/` 开头的路径
+The default middleware validates the token and writes authenticated values into the GoFrame request context variables:
 
-## 依赖
+| Key | Value |
+| --- | --- |
+| `dtoken.KeyUserKey` | Current authenticated user key. |
+| `dtoken.KeyData` | Extra data passed to `Generate`. |
 
-- [GoFrame v2](https://github.com/gogf/gf) — Web 框架及工具库
-- [ants v2](https://github.com/panjf2000/ants) — 高性能协程池
+Read the values with `GetCtxVar`:
+
+```go
+request := ghttp.RequestFromCtx(ctx)
+userKey := request.GetCtxVar(dtoken.KeyUserKey).String()
+data := request.GetCtxVar(dtoken.KeyData).Map()
+```
+
+These values are set through `r.SetCtxVar`, not `context.WithValue`, so do not read them with `ctx.Value()`.
+
+You can customize the authentication failure response:
+
+```go
+middleware := dtoken.NewDefaultMiddleware(token, func(r *ghttp.Request) {
+    r.Response.WriteJsonExit(g.Map{
+        "code":    401,
+        "message": "authentication expired, please log in again",
+        "data":    []interface{}{},
+    })
+})
+```
+
+Authentication can fail when the token is missing, the Bearer format is invalid, the token cannot be decoded, the stored session does not exist, or the token does not match the current session.
+
+## Token Extraction
+
+The middleware reads tokens in this order:
+
+1. Header: `<AuthHeaderKey>: Bearer <token>`, defaulting to `Authorization: Bearer <token>`.
+2. Request parameter: `token`.
+
+The Bearer header format is strict and must be `Bearer <token>`.
+
+## Excluded Paths
+
+`AuthExcludePaths` supports:
+
+- Exact match: `/login`
+- Prefix match: `/api/*`
+
+Prefix rules remove the trailing `/*` and then match by path boundary. For example, `/api/*` matches `/api` and `/api/users`, but does not match `/apiary`.
+
+## Automatic Renewal
+
+When a validated session has a remaining lifetime less than or equal to `MaxRefresh`, DToken-GF submits an asynchronous renewal task.
+
+- Renewal does not block the current request.
+- Before renewal writes the session back, it reloads the current session and checks token consistency to avoid replacing a newer token with an old one.
+- `MaxRefreshTimes` can limit how many times a session may be renewed.
+
+Call `Shutdown(ctx)` when the application exits to stop the renewal pool gracefully.
+
+## Cache Modes
+
+- `CacheModeCache`: uses GoFrame `gcache` in-memory cache.
+- `CacheModeRedis`: uses GoFrame Redis cache adapter and requires GoFrame Redis configuration.
+
+## Example Project
+
+The repository includes a GoFrame example application under `dtoken-gf-example`.
+
+Useful files:
+
+| Path | Purpose |
+| --- | --- |
+| `dtoken-gf-example/token/token.go` | Initializes DToken-GF from GoFrame configuration. |
+| `dtoken-gf-example/manifest/config/config.yaml` | Example server, Redis, logger, and `dToken` configuration. |
+| `dtoken-gf-example/internal/controller/auth` | Login and logout examples. |
+| `dtoken-gf-example/internal/controller/user` | Protected user endpoint examples. |
+
+## Project Structure
+
+| File | Responsibility |
+| --- | --- |
+| `factory.go` | Token construction entry points. |
+| `config.go` | Functional options and construction dependencies. |
+| `options.go` | Options, defaults, and validation. |
+| `token.go` | Token generation, validation, parsing, session lookup, and destruction. |
+| `store.go` | Raw encoded session storage interface. |
+| `session.go` | Session data model. |
+| `codec_token.go` | Token codec interfaces and default AES + Base64 implementation. |
+| `codec_session.go` | Session codec interfaces and default `gjson` implementation. |
+| `cache.go` | Built-in store implementation for cache and Redis modes. |
+| `middleware.go` | GoFrame HTTP authentication middleware. |
+| `renewer.go` | Automatic renewal logic. |
+| `pool.go` | Renewal worker pool management. |
+| `banner.go` | Startup banner output. |
+| `constants.go` | Constants and error messages. |
+
+## Security Notes
+
+- Use a strong project-specific AES key with a valid length of 16, 24, or 32 bytes.
+- Use HTTPS in production so tokens are not exposed in transit.
+- Prefer the `Authorization: Bearer <token>` header over query parameters.
+- Choose Redis or a custom shared store when running multiple application instances.
+- Make logout call `Destroy` or `DestroyByToken` to remove the stored session.
 
 ## License
 
-MIT
+DToken-GF is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
